@@ -26,7 +26,7 @@ const nextConfig: NextConfig = {
     ],
   },
   // Combine both origins into the correct array inside nextConfig
-  allowedDevOrigins: ["192.168.0.102", "10.11.149.253"],
+  allowedDevOrigins: ["192.168.0.102", "10.11.149.253", "192.168.18.35"],
 };
 
 export default nextConfig;

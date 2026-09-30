@@ -2,14 +2,15 @@
 
 @theme inline {
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
-  --color-ink: #12151a;
+  --color-ink: #0d0f12;
   --color-muted: #667085;
   --color-line: #e4e7ec;
   --color-mist: #f2f4f7;
-  --color-accent: #0a58ff;
+  --color-accent: #a9812f;
+  --color-accent-soft: #f7f1e0;
   --color-sale: #d92d20;
   /* aliases used by auth/admin pages */
-  --color-brand: #12151a;
+  --color-brand: #0d0f12;
   --color-surface: #f2f4f7;
 }
 
@@ -26,4 +27,9 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
+}
+
+@keyframes slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
 }

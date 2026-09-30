@@ -226,7 +226,7 @@ export function ProductInteractive({
           </button>
           <button
             disabled={!canBuy}
-            onClick={async () => { await addToCart(line); router.push("/cart"); }}
+            onClick={async () => { await addToCart(line, { openDrawer: false }); router.push("/cart"); }}
             className="h-12 rounded-full bg-ink text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-mist disabled:text-muted"
           >
             Buy Now

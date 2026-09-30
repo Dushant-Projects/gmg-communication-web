@@ -13,7 +13,7 @@ type Option = { id: string; name: string };
 export type ProductInitial = {
   id: string; name: string; slug: string; model: string | null; brand_id: string | null; category_id: string | null;
   description: string | null; price: number; sale_price: number | null; cost_price: number; sku: string | null; stock: number;
-  low_stock_threshold: number; specifications: Record<string, string> | null; is_featured: boolean; is_active: boolean;
+  low_stock_threshold: number; specifications: Record<string, string> | null; is_featured: boolean; is_active: boolean; video_url: string | null;
   images: ImageItem[]; variants: VariantRow[];
 };
 

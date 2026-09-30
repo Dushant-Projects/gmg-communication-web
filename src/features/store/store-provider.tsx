@@ -4,9 +4,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { MAX_QTY } from "@/lib/constants";
+import { CartDrawer } from "@/features/cart/cart-drawer";
+import { CompareBar } from "@/features/compare/compare-bar";
 
 export type CartLine = { productId: string; variantId: string | null; quantity: number };
 type LineKey = Omit<CartLine, "quantity">;
+type AddOptions = { openDrawer?: boolean };
 
 type Ctx = {
   userId: string | null;
@@ -14,17 +17,25 @@ type Ctx = {
   ready: boolean;
   lines: CartLine[];
   cartCount: number;
-  addToCart: (line: CartLine) => Promise<void>;
+  addToCart: (line: CartLine, opts?: AddOptions) => Promise<void>;
   setQuantity: (key: LineKey, quantity: number) => Promise<void>;
   removeLine: (key: LineKey) => Promise<void>;
   resetCart: () => void;
   wishlist: Set<string>;
   toggleWishlist: (productId: string) => Promise<void>;
   notify: (message: string) => void;
+  cartDrawerOpen: boolean;
+  openCartDrawer: () => void;
+  closeCartDrawer: () => void;
+  compareIds: string[];
+  toggleCompare: (productId: string) => void;
+  clearCompare: () => void;
 };
 
 const StoreContext = createContext<Ctx | null>(null);
 const LOCAL_KEY = "ms_cart_v1";
+const COMPARE_KEY = "ms_compare_v1";
+const MAX_COMPARE = 4;
 const same = (a: LineKey, b: LineKey) => a.productId === b.productId && (a.variantId ?? null) === (b.variantId ?? null);
 
 function readLocal(): CartLine[] {
@@ -35,28 +46,29 @@ function readLocal(): CartLine[] {
     return [];
   }
 }
+function readCompare(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(COMPARE_KEY) ?? "[]");
+    return Array.isArray(raw) ? raw.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
-export function StoreProvider({
-  children,
-  initialUserId = null,
-  initialUserName = null,
-}: {
-  children: React.ReactNode;
-  initialUserId?: string | null;
-  initialUserName?: string | null;
-}) {
+export function StoreProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const pathname = usePathname();
 
-  // Server se aaya hua initial state — first paint pe hi correct login state
-  const [userId, setUserId] = useState<string | null>(initialUserId);
-  const [userName, setUserName] = useState<string | null>(initialUserName);
-  const [authChecked, setAuthChecked] = useState(true); // server already checked
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [ready, setReady] = useState(false);
   const [lines, setLines] = useState<CartLine[]>([]);
   const [wishlist, setWishlist] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
   const linesRef = useRef<CartLine[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -70,6 +82,15 @@ export function StoreProvider({
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
+
+  useEffect(() => { setCompareIds(readCompare()); }, []);
+
+  // ---- display name for the navbar ----
+  useEffect(() => {
+    if (!userId) { setUserName(null); return; }
+    supabase.from("profiles").select("full_name,email").eq("id", userId).single()
+      .then(({ data }) => setUserName(data?.full_name || data?.email || "Account"));
+  }, [userId, supabase]);
 
   // ---- database helpers (logged-in cart) ----
   const dbWrite = useCallback(
@@ -96,51 +117,21 @@ export function StoreProvider({
     [supabase]
   );
 
-  // ---- keep auth state in sync ----
-  // Server already gave us initialUserId. Client listener handles login/logout after that.
+  // ---- keep auth state in sync (server actions set cookies, so re-check on navigation) ----
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      // Ignore INITIAL_SESSION if we already have server value (avoids flash)
-      if (event === "INITIAL_SESSION" && initialUserId !== undefined) return;
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user?.id ?? null);
       setAuthChecked(true);
     });
     return () => data.subscription.unsubscribe();
-  }, [supabase, initialUserId]);
+  }, [supabase]);
 
-  // Re-check on navigation (covers server-action redirects + soft navigations)
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      const id = data.user?.id ?? null;
-      setUserId(id);
+    supabase.auth.getSession().then(({ data }) => {
+      setUserId(data.session?.user?.id ?? null);
       setAuthChecked(true);
     });
   }, [pathname, supabase]);
-
-  // Sync when server re-renders layout with new initial props (e.g. after login redirect)
-  useEffect(() => {
-    setUserId(initialUserId);
-    if (initialUserName) setUserName(initialUserName);
-  }, [initialUserId, initialUserName]);
-
-  // ---- display name for the navbar ----
-  useEffect(() => {
-    if (!userId) {
-      setUserName(null);
-      return;
-    }
-    // Agar server se pehle se name aa gaya hai to dobara fetch mat karo
-    if (initialUserName && initialUserId === userId) {
-      setUserName(initialUserName);
-      return;
-    }
-    supabase
-      .from("profiles")
-      .select("full_name,email")
-      .eq("id", userId)
-      .maybeSingle()
-      .then(({ data }) => setUserName(data?.full_name || data?.email || "Account"));
-  }, [userId, supabase, initialUserId, initialUserName]);
 
   // ---- load cart + wishlist whenever the user changes ----
   useEffect(() => {
@@ -167,7 +158,6 @@ export function StoreProvider({
         productId: r.product_id, variantId: r.variant_id, quantity: r.quantity,
       }));
 
-      // merge the guest cart into the account cart
       for (const g of local) {
         const existing = merged.find((m) => same(m, g));
         if (existing) {
@@ -196,7 +186,7 @@ export function StoreProvider({
   };
 
   const addToCart = useCallback(
-    async (line: CartLine) => {
+    async (line: CartLine, opts?: AddOptions) => {
       const cur = linesRef.current;
       const existing = cur.find((x) => same(x, line));
       const quantity = Math.min(MAX_QTY, (existing?.quantity ?? 0) + line.quantity);
@@ -206,6 +196,7 @@ export function StoreProvider({
       commit(next);
       persistLocal(next);
       notify("Added to cart");
+      if (opts?.openDrawer !== false) setCartDrawerOpen(true);
       if (userId) await dbWrite(userId, { ...line, quantity }, !!existing);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -255,25 +246,44 @@ export function StoreProvider({
       notify(has ? "Removed from wishlist" : "Saved to wishlist");
       if (has) await supabase.from("wishlists").delete().eq("user_id", userId).eq("product_id", productId);
       else await supabase.from("wishlists").insert({ user_id: userId, product_id: productId });
-      router.refresh(); // keeps /wishlist in sync
+      router.refresh();
     },
     [userId, wishlist, supabase, router, pathname, notify]
   );
+
+  const toggleCompare = useCallback((productId: string) => {
+    setCompareIds((prev) => {
+      const has = prev.includes(productId);
+      const next = has ? prev.filter((id) => id !== productId) : [...prev, productId].slice(0, MAX_COMPARE);
+      if (!has && prev.length >= MAX_COMPARE) { notify(`You can compare up to ${MAX_COMPARE} products`); return prev; }
+      localStorage.setItem(COMPARE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, [notify]);
+
+  const clearCompare = useCallback(() => {
+    setCompareIds([]);
+    localStorage.removeItem(COMPARE_KEY);
+  }, []);
 
   const value = useMemo<Ctx>(
     () => ({
       userId, userName, ready, lines,
       cartCount: lines.reduce((s, l) => s + l.quantity, 0),
       addToCart, setQuantity, removeLine, resetCart, wishlist, toggleWishlist, notify,
+      cartDrawerOpen, openCartDrawer: () => setCartDrawerOpen(true), closeCartDrawer: () => setCartDrawerOpen(false),
+      compareIds, toggleCompare, clearCompare,
     }),
-    [userId, userName, ready, lines, addToCart, setQuantity, removeLine, resetCart, wishlist, toggleWishlist, notify]
+    [userId, userName, ready, lines, addToCart, setQuantity, removeLine, resetCart, wishlist, toggleWishlist, notify, cartDrawerOpen, compareIds, toggleCompare, clearCompare]
   );
 
   return (
     <StoreContext.Provider value={value}>
       {children}
+      <CartDrawer />
+      <CompareBar />
       {toast && (
-        <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">
+        <div role="status" className="fixed bottom-6 left-1/2 z-[70] -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">
           {toast}
         </div>
       )}

@@ -4,12 +4,16 @@ import { stockLabel, type CardProduct } from "@/features/catalog/queries";
 import { Stars } from "./stars";
 import { AddToCartButton, WishlistButton } from "./card-actions";
 import { HoverGallery } from "./hover-gallery";
+import { CompareButton } from "@/features/compare/compare-button";
 
 export function ProductCard({ p }: { p: CardProduct }) {
   const stock = stockLabel(p.stock, p.lowStock);
   return (
     <article className="group relative flex flex-col rounded-2xl border border-line bg-white p-3 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
-      <WishlistButton productId={p.id} className="absolute right-5 top-5 z-10" />
+      <div className="absolute right-5 top-5 z-10 flex flex-col gap-2">
+        <WishlistButton productId={p.id} />
+        <CompareButton productId={p.id} />
+      </div>
       <Link href={`/product/${p.slug}`} className="block">
         <div className="relative">
           <HoverGallery images={p.images.length ? p.images : p.image ? [p.image] : []} alt={p.name} />
