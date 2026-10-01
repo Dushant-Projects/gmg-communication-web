@@ -21,6 +21,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
     id: product.id, name: product.name, slug: product.slug, model: product.model, brand_id: product.brand_id, category_id: product.category_id,
     description: product.description, price: Number(product.price), sale_price: product.sale_price != null ? Number(product.sale_price) : null,
     cost_price: Number(product.cost_price ?? 0),
+    sale_ends_at: product.sale_ends_at ?? null,
     sku: product.sku, stock: product.stock, low_stock_threshold: product.low_stock_threshold, specifications: product.specifications ?? {},
     is_featured: product.is_featured, is_active: product.is_active, video_url: product.video_url ?? null,
     images: sortImages(product.product_images).map((img: any) => ({ key: img.id, id: img.id, url: img.url, publicId: img.public_id, color: img.color })),

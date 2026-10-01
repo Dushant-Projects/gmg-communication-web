@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn, slugify } from "@/lib/utils";
@@ -12,13 +12,22 @@ import { VariantEditor, emptyVariant, type VariantRow } from "./variant-editor";
 type Option = { id: string; name: string };
 export type ProductInitial = {
   id: string; name: string; slug: string; model: string | null; brand_id: string | null; category_id: string | null;
-  description: string | null; price: number; sale_price: number | null; cost_price: number; sku: string | null; stock: number;
+  description: string | null; price: number; sale_price: number | null; sale_ends_at?: string | null; cost_price: number; sku: string | null; stock: number;
   low_stock_threshold: number; specifications: Record<string, string> | null; is_featured: boolean; is_active: boolean; video_url: string | null;
   images: ImageItem[]; variants: VariantRow[];
 };
 
 const input = "h-11 w-full rounded-xl border border-line px-4 text-sm outline-none focus:border-ink focus:ring-2 focus:ring-ink/10";
 const label = "block text-sm font-bold";
+
+// datetime-local works in the admin's own timezone; the database stores UTC.
+const toLocalInput = (iso: string | null | undefined) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
 export function ProductForm({ brands, categories, initial }: { brands: Option[]; categories: Option[]; initial?: ProductInitial }) {
   const router = useRouter();
@@ -34,6 +43,15 @@ export function ProductForm({ brands, categories, initial }: { brands: Option[];
   const [description, setDescription] = useState(initial?.description ?? "");
   const [price, setPrice] = useState(initial ? String(initial.price) : "");
   const [salePrice, setSalePrice] = useState(initial?.sale_price != null ? String(initial.sale_price) : "");
+  const [saleEnds, setSaleEnds] = useState("");
+  const initialSaleEnds = useRef("");
+  const saleEndsInput = useRef<HTMLInputElement>(null);
+  // filled after mount so the server (UTC) and browser timezones never disagree
+  useEffect(() => {
+    const v = toLocalInput(initial?.sale_ends_at);
+    initialSaleEnds.current = v;
+    setSaleEnds(v);
+  }, [initial?.sale_ends_at]);
   const [costPrice, setCostPrice] = useState(initial ? String(initial.cost_price) : "0");
   const [sku, setSku] = useState(initial?.sku ?? "");
   const [stock, setStock] = useState(initial ? String(initial.stock) : "0");
@@ -71,11 +89,23 @@ export function ProductForm({ brands, categories, initial }: { brands: Option[];
       return setError("Enter a valid stock quantity.");
     }
 
+    if (saleEndsInput.current?.validity.badInput) return setError("Sale end date is incomplete. Pick the full date and time, or clear the field.");
+
+    const hasAnySale = sp != null || variants.some((v) => !!v.sale_price);
+    const endsMs = saleEnds ? new Date(saleEnds).getTime() : null;
+    const endsDirty = saleEnds !== initialSaleEnds.current;
+    if (endsMs != null && Number.isNaN(endsMs)) return setError("Enter a valid sale end date.");
+    if (endsMs != null && !hasAnySale) return setError("Add a sale price before setting a sale end date.");
+    if (endsMs != null && endsDirty && endsMs <= Date.now()) return setError("Sale end date must be in the future.");
+    const saleEndsAt = !hasAnySale || endsMs == null
+      ? null
+      : endsDirty ? new Date(endsMs).toISOString() : (initial?.sale_ends_at ?? null);
+
     setBusy(true);
     const payload = {
       name: name.trim(), slug: slug.trim(), model: model.trim() || null,
       brand_id: brandId || null, category_id: categoryId || null,
-      description: description.trim() || null, price: p, sale_price: sp, cost_price: Number(costPrice) || 0,
+      description: description.trim() || null, price: p, sale_price: sp, sale_ends_at: saleEndsAt, cost_price: Number(costPrice) || 0,
       sku: sku.trim() || null, low_stock_threshold: Number(lowStock) || 5,
       specifications: Object.fromEntries(specs.filter((s) => s.key.trim()).map((s) => [s.key.trim(), s.value.trim()])),
       is_featured: featured, is_active: active, video_url: videoUrl,
@@ -152,6 +182,7 @@ export function ProductForm({ brands, categories, initial }: { brands: Option[];
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <label><span className={label}>Price (PKR)</span><input required type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} className={cn(input, "mt-1")} /></label>
           <label><span className={label}>Sale price (optional)</span><input type="number" min={0} value={salePrice} onChange={(e) => setSalePrice(e.target.value)} className={cn(input, "mt-1")} /></label>
+          <label className="sm:col-span-2"><span className={label}>Sale ends on (optional)</span><input ref={saleEndsInput} type="datetime-local" value={saleEnds} onChange={(e) => setSaleEnds(e.target.value)} className={cn(input, "mt-1")} /><span className="mt-1 block text-xs text-muted">Shows a real countdown on the product page. Leave empty for the auto-restarting timer. When the date passes, the timer hides and the sale price is removed automatically.</span></label>
           <label><span className={label}>Cost price (optional)</span><input type="number" min={0} value={costPrice} onChange={(e) => setCostPrice(e.target.value)} className={cn(input, "mt-1")} /><span className="mt-1 block text-xs text-muted">Not shown to customers. Used for the profit/loss numbers on the dashboard.</span></label>
           <label><span className={label}>SKU</span><input value={sku} onChange={(e) => setSku(e.target.value)} className={cn(input, "mt-1")} /></label>
           <label><span className={label}>Low stock alert below</span><input type="number" min={0} value={lowStock} onChange={(e) => setLowStock(e.target.value)} className={cn(input, "mt-1")} /></label>

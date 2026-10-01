@@ -10,6 +10,7 @@ import { cn, formatPrice } from "@/lib/utils";
 import { useStore } from "@/features/store/store-provider";
 import { stockLabel } from "@/features/catalog/queries";
 import { Stars } from "./stars";
+import { LowStockIndicator, SaleCountdown, ViewingIndicator, isLowStock } from "./product-urgency";
 
 export type Variant = {
   id: string; color: string | null; storage: string | null; ram: string | null;
@@ -24,7 +25,7 @@ const AUTOPLAY_MS = 3500;
 export function ProductInteractive({
   product, variants, images, videoUrl, brandName, brandSlug, name, model, rating, ratingCount,
 }: {
-  product: { id: string; price: number; salePrice: number | null; stock: number; lowStock: number };
+  product: { id: string; price: number; salePrice: number | null; saleEndsAt?: string | null; stock: number; lowStock: number };
   variants: Variant[]; images: GalleryImage[]; videoUrl: string | null;
   brandName: string | null; brandSlug: string | null; name: string; model: string | null;
   rating: number; ratingCount: number;
@@ -40,8 +41,39 @@ export function ProductInteractive({
   const variant = active.find((v) => v.color === sel.color && v.storage === sel.storage && v.ram === sel.ram) ?? null;
   const hasVariants = active.length > 0;
 
+  // Sale deadline passed while the page is open: show the normal price at once.
+  // The database cron clears the sale within ~1 minute; we refetch after that.
+  const [saleOver, setSaleOver] = useState(false);
+  useEffect(() => {
+    setSaleOver(false);
+    if (!product.saleEndsAt) return;
+    const end = new Date(product.saleEndsAt).getTime();
+    if (!Number.isFinite(end)) return;
+    const left = end - Date.now();
+    const MAX_TIMEOUT = 2147483647; // setTimeout limit (~24 days)
+    if (left > MAX_TIMEOUT) return;
+
+    let refresh: ReturnType<typeof setTimeout> | undefined;
+    const expire = () => {
+      setSaleOver(true);
+      router.refresh();
+      refresh = setTimeout(() => router.refresh(), 70000);
+    };
+    if (left <= 0) {
+      expire();
+      return () => clearTimeout(refresh);
+    }
+    const t = setTimeout(expire, left + 500);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(refresh);
+    };
+  }, [product.saleEndsAt, router]);
+
   const list = variant ? variant.price : product.price;
-  const unit = variant ? (variant.sale_price ?? variant.price) : (product.salePrice ?? product.price);
+  const unit = saleOver
+    ? list
+    : variant ? (variant.sale_price ?? variant.price) : (product.salePrice ?? product.price);
   const onSale = unit < list;
   const pct = onSale ? Math.round(((list - unit) / list) * 100) : 0;
   const stock = hasVariants ? (variant?.stock ?? 0) : product.stock;
@@ -165,7 +197,14 @@ export function ProductInteractive({
             </>
           )}
         </div>
-        <p className={cn("mt-2 text-sm font-semibold", label.tone)}>{label.text}</p>
+        {isLowStock(stock, product.lowStock) ? (
+          <LowStockIndicator stock={stock} lowStock={product.lowStock} />
+        ) : (
+          <p className={cn("mt-2 text-sm font-semibold", label.tone)}>{label.text}</p>
+        )}
+
+        {canBuy && onSale && <SaleCountdown productId={product.id} endsAt={product.saleEndsAt ?? null} />}
+        {canBuy && <ViewingIndicator productId={product.id} />}
 
         {ROWS.map(([key, title]) => {
           const opts = optionsFor(key);

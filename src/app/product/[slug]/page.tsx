@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { one, primaryImage, sortImages } from "@/features/catalog/queries";
 import { ProductInteractive } from "@/features/catalog/components/product-interactive";
 import { ProductTabs } from "@/features/catalog/components/product-tabs";
+import { BrandMarquee } from "@/components/brand-marquee";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -34,10 +35,16 @@ export default async function ProductPage({ params }: Props) {
 
   if (!p) notFound();
 
-  const { data: reviews } = await supabase
-    .from("reviews").select("id,rating,comment,created_at")
-    .eq("product_id", p.id).eq("status", "approved")
-    .order("created_at", { ascending: false }).limit(20);
+  const [{ data: reviews }, { data: allBrands }] = await Promise.all([
+    supabase
+      .from("reviews").select("id,rating,comment,created_at")
+      .eq("product_id", p.id).eq("status", "approved")
+      .order("created_at", { ascending: false }).limit(20),
+    supabase
+      .from("brands").select("name,slug,logo_url")
+      .eq("is_active", true).order("name"),
+  ]);
+  const brandList = (allBrands ?? []) as { name: string; slug: string; logo_url: string | null }[];
 
   const brand = one<any>(p.brands);
   const category = one<any>(p.categories);
@@ -58,6 +65,7 @@ export default async function ProductPage({ params }: Props) {
       "@type": "Offer",
       priceCurrency: "PKR",
       price: Number(p.sale_price ?? p.price),
+      priceValidUntil: p.sale_price != null && p.sale_ends_at && new Date(p.sale_ends_at).getTime() > Date.now() ? p.sale_ends_at : undefined,
       availability: p.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
     },
   };
@@ -72,7 +80,7 @@ export default async function ProductPage({ params }: Props) {
       </nav>
 
       <ProductInteractive
-        product={{ id: p.id, price: Number(p.price), salePrice: p.sale_price != null ? Number(p.sale_price) : null, stock: p.stock, lowStock: p.low_stock_threshold }}
+        product={{ id: p.id, price: Number(p.price), salePrice: p.sale_price != null ? Number(p.sale_price) : null, saleEndsAt: p.sale_ends_at ?? null, stock: p.stock, lowStock: p.low_stock_threshold }}
         variants={variants}
         images={images.map((img: any) => ({ url: img.url, color: img.color ?? null }))}
         videoUrl={p.video_url ?? null}
@@ -83,6 +91,15 @@ export default async function ProductPage({ params }: Props) {
         rating={Number(p.rating_avg)}
         ratingCount={p.rating_count}
       />
+
+      {brandList.length > 0 && (
+        <section className="mt-10" aria-label="Brands">
+          <p className="mb-1 text-center text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
+            Top brands
+          </p>
+          <BrandMarquee brands={brandList} variant="pill" activeSlug={brand?.slug ?? null} />
+        </section>
+      )}
 
       <div className="mt-14">
         <ProductTabs
