@@ -7,7 +7,7 @@ import { formatPrice } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 export type HeroSlide = { name: string; slug: string; image: string; price: number; salePrice: number | null };
-const AUTOPLAY_MS = 5000;
+const AUTOPLAY_MS = 1000;
 
 export function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
   const [i, setI] = useState(0);
