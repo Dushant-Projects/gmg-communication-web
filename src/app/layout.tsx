@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Manrope } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { StoreProvider } from "@/features/store/store-provider";
 import { Navbar } from "@/components/layout/navbar";
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <Footer />
         </StoreProvider>
+        <Analytics />
       </body>
     </html>
   );
