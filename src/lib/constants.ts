@@ -1,4 +1,4 @@
-export const STORE_NAME = "Mobile Store";
+export const STORE_NAME = "GMG Store";
 export const SHIPPING_FEE = 500; // keep in sync with v_shipping in place_order() (SQL)
 export const MAX_QTY = 10;
 

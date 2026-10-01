@@ -9,6 +9,7 @@ import { CountdownBanner } from "@/features/marketing/countdown-banner";
 import { Reveal } from "@/components/reveal";
 import { BrandMarquee } from "@/components/brand-marquee";
 import { StoreComparison } from "@/components/store-comparison";
+
 function Section({
   title,
   href,
@@ -201,13 +202,13 @@ export default async function Home() {
           <div className="flex items-center justify-center gap-3">
             <span className="h-px w-8 bg-[#B88A3B]/60" />
             <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#B88A3B]">
-              The Mobile Store Difference
+              The GMG Store Difference
             </p>
             <span className="h-px w-8 bg-[#B88A3B]/60" />
           </div>
 
           <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-[#1a1a1a] sm:text-4xl md:text-5xl">
-            More than a mobile store.
+            More than a GMG store.
             <br />
             <span className="text-[#B88A3B]">A better way to buy.</span>
           </h2>

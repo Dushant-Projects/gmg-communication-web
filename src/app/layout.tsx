@@ -9,7 +9,7 @@ import { Footer } from "@/components/layout/footer";
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "Mobile Store — Smartphones & Accessories", template: "%s | Mobile Store" },
+  title: { default: "GMG Store — Smartphones & Accessories", template: "%s | GMG Store" },
   description: "Shop the latest smartphones and accessories at competitive prices.",
 };
 

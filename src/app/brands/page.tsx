@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { BrandMarquee } from "@/components/brand-marquee";
 
 export const metadata: Metadata = {
-  title: "Brands | Mobile Store",
+  title: "Brands | GMG Store",
   description:
     "Explore smartphones and accessories from leading mobile brands.",
 };
