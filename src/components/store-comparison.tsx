@@ -181,7 +181,7 @@ export function StoreComparison() {
                                     {/* Mobile Store */}
                                     <div className="rounded-xl border border-[#e7dcc7] bg-gradient-to-b from-[#fffaf0] to-[#fff7e8] p-3.5">
                                         <p className="text-[10px] font-bold uppercase tracking-wider text-[#8b6a35]">
-                                            Mobile Store
+                                            GMG Store
                                         </p>
                                         <div className="mt-2.5 flex items-center gap-2">
                                             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#B88A3B] text-white">
